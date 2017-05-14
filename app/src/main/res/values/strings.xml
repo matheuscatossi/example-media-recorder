@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">example-media-recorder</string>
+
+    <string name="start_recording">Iniciar gravação</string>
+    <string name="stop_recording">Parar gravação</string>
+
+    <string name="start_playing">Reproduzir</string>\
+    <string name="stop_playing">Parar</string>
+</resources>
