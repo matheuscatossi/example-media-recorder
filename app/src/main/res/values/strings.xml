@@ -6,4 +6,10 @@
 
     <string name="start_playing">Reproduzir</string>\
     <string name="stop_playing">Parar</string>
+
+    <string name="action">Diga o que deseja...</string>
+    <string name="sorry">Desculpe, não entendi.</string>
+    <string name="speech">Use a Google API para solicitar algo.</string>
+
+    <string name="balance">Saldo</string>
 </resources>

@@ -1,187 +1,127 @@
 package com.project.matheuscatossi.example_media_recorder;
 
-import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
+import java.util.ArrayList;
+import java.util.Locale;
 
-
-import android.Manifest;
-import android.content.Context;
-import android.content.pm.PackageManager;
-import android.media.MediaPlayer;
-import android.media.MediaRecorder;
+import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
-import android.support.v7.app.AppCompatActivity;
+import android.speech.RecognizerIntent;
+import android.support.v7.app.AlertDialog;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.LinearLayout;
+import android.widget.ImageButton;
+import android.widget.TextView;
+import android.widget.Toast;
 
-import java.io.IOException;
+import com.project.matheuscatossi.example_media_recorder.model.Balance;
+import com.project.matheuscatossi.example_media_recorder.service.APIClient;
+import com.project.matheuscatossi.example_media_recorder.service.APIInterface;
 
-public class MainActivity extends AppCompatActivity {
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
-    private static final String LOG_TAG = "AudioRecordTest";
-    private static final int REQUEST_RECORD_AUDIO_PERMISSION = 200;
-    private static String mFileName = null;
-
-    private RecordButton mRecordButton = null;
-    private MediaRecorder mRecorder = null;
-
-    private PlayButton   mPlayButton = null;
-    private MediaPlayer   mPlayer = null;
-
-    private boolean permissionToRecordAccepted = false;
-    private String [] permissions = {Manifest.permission.RECORD_AUDIO};
+public class MainActivity extends Activity {
+    private final int SPEECH_RECOGNITION_CODE = 1;
+    private TextView txtOutput;
+    private ImageButton btnMicrophone;
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        switch (requestCode){
-            case REQUEST_RECORD_AUDIO_PERMISSION:
-                permissionToRecordAccepted  = grantResults[0] == PackageManager.PERMISSION_GRANTED;
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        txtOutput = (TextView) findViewById(R.id.txt_output);
+        btnMicrophone = (ImageButton) findViewById(R.id.btn_mic);
+        btnMicrophone.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startSpeechToText();
+            }
+        });
+    }
+
+    protected void startSpeechToText() {
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT,
+                R.string.action);
+        try {
+            startActivityForResult(intent, SPEECH_RECOGNITION_CODE);
+        } catch (ActivityNotFoundException a) {
+            Toast.makeText(getApplicationContext(), R.string.sorry,
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        switch (requestCode) {
+            case SPEECH_RECOGNITION_CODE: {
+                if (resultCode == RESULT_OK && null != data) {
+                    ArrayList<String> result = data
+                            .getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+                    String text = result.get(0);
+
+                    if(text.toUpperCase().equals("QUAL O MEU SALDO")){
+                        getSaldo();
+                    }
+
+                    txtOutput.setText(text);
+
+                }
                 break;
-        }
-        if (!permissionToRecordAccepted ) finish();
-
-    }
-
-    private void onRecord(boolean start) {
-        if (start) {
-            startRecording();
-        } else {
-            stopRecording();
-        }
-    }
-
-    private void onPlay(boolean start) {
-        if (start) {
-            startPlaying();
-        } else {
-            stopPlaying();
-        }
-    }
-
-    private void startPlaying() {
-        mPlayer = new MediaPlayer();
-        try {
-            mPlayer.setDataSource(mFileName);
-            mPlayer.prepare();
-            mPlayer.start();
-        } catch (IOException e) {
-            Log.e(LOG_TAG, "prepare() failed");
-        }
-    }
-
-    private void stopPlaying() {
-        mPlayer.release();
-        mPlayer = null;
-    }
-
-    private void startRecording() {
-        mRecorder = new MediaRecorder();
-        mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-        mRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
-        mRecorder.setOutputFile(mFileName);
-        mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-
-        try {
-            mRecorder.prepare();
-        } catch (IOException e) {
-            Log.e(LOG_TAG, "prepare() failed");
-        }
-
-        mRecorder.start();
-    }
-
-    private void stopRecording() {
-        mRecorder.stop();
-        mRecorder.release();
-        mRecorder = null;
-    }
-
-    class RecordButton extends android.support.v7.widget.AppCompatButton {
-        boolean mStartRecording = true;
-
-        OnClickListener clicker = new OnClickListener() {
-            public void onClick(View v) {
-                onRecord(mStartRecording);
-                if (mStartRecording) {
-                    setText(R.string.stop_recording);
-                } else {
-                    setText(R.string.start_recording);
-                }
-                mStartRecording = !mStartRecording;
             }
-        };
-
-        public RecordButton(Context ctx) {
-            super(ctx);
-            setText(R.string.start_recording);
-            setOnClickListener(clicker);
         }
     }
 
-    class PlayButton extends android.support.v7.widget.AppCompatButton {
-        boolean mStartPlaying = true;
+    private APIInterface apiService;
+    private Call<Balance> callBalance;
 
-        OnClickListener clicker = new OnClickListener() {
-            public void onClick(View v) {
-                onPlay(mStartPlaying);
-                if (mStartPlaying) {
-                    setText(R.string.stop_playing);
-                } else {
-                    setText(R.string.start_playing);
+    protected void getSaldo() {
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        builder.setTitle(R.string.balance);
+        View viewInflated = LayoutInflater.from(MainActivity.this).inflate(R.layout.popup_balance, (ViewGroup) getWindow().getDecorView().getRootView(), false);
+
+        final TextView tv_balance = (TextView) viewInflated.findViewById(R.id.tv_balance);
+
+        apiService = APIClient.getService().create(APIInterface.class);
+        callBalance = apiService.getBalance();
+
+        callBalance.enqueue(new Callback<Balance>() {
+            @Override
+            public void onResponse(Call<Balance> call, Response<Balance> response) {
+                if (response.raw().code() == 200) {
+
+                    Balance balance = response.body();
+
+                   tv_balance.setText("" + balance.getBalance());
                 }
-                mStartPlaying = !mStartPlaying;
             }
-        };
 
-        public PlayButton(Context ctx) {
-            super(ctx);
-            setText(R.string.start_playing);
-            setOnClickListener(clicker);
-        }
-    }
+            @Override
+            public void onFailure(Call<Balance> call, Throwable t) {
+                Log.e("BALANCE", t.toString());
+            }
+        });
 
-    @Override
-    public void onCreate(Bundle icicle) {
-        super.onCreate(icicle);
+        builder.setView(viewInflated);
 
-        mFileName = getExternalCacheDir().getAbsolutePath();
-        mFileName += "/audiorecordtest.3gp";
+        builder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
 
-        ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION);
-
-        LinearLayout ll = new LinearLayout(this);
-        mRecordButton = new RecordButton(this);
-        ll.addView(mRecordButton,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        0));
-        mPlayButton = new PlayButton(this);
-        ll.addView(mPlayButton,
-                new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                        0));
-        setContentView(ll);
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        if (mRecorder != null) {
-            mRecorder.release();
-            mRecorder = null;
-        }
-
-        if (mPlayer != null) {
-            mPlayer.release();
-            mPlayer = null;
-        }
+        builder.show();
     }
 }
